@@ -1,0 +1,10 @@
+{
+  "name": "anonymous-stage-server",
+  "private": true,
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "http-proxy-middleware": "^3.0.3",
+    "livekit-server-sdk": "^2.9.0"
+  }
+}

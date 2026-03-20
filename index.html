@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AnonymousStage</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Setup screen: enter tunnel URL or go live -->
+  <div id="setup-screen" class="screen">
+    <h1>AnonymousStage</h1>
+    <p class="subtitle">Live music, anonymous audience</p>
+
+    <div id="setup-viewer" class="setup-section">
+      <p>Waiting for stream connection...</p>
+      <div class="spinner"></div>
+    </div>
+
+    <div id="setup-performer" class="setup-section" style="display:none">
+      <label for="tunnel-input">Tunnel URL (from start.sh)</label>
+      <input id="tunnel-input" type="text" placeholder="https://abc123.trycloudflare.com">
+      <button id="go-live-btn" class="btn btn-primary">Go Live</button>
+    </div>
+  </div>
+
+  <!-- Main stage screen -->
+  <div id="stage-screen" class="screen" style="display:none">
+    <div id="stage-layout">
+      <!-- Media area -->
+      <div id="media-area">
+        <div id="video-container">
+          <video id="stage-video" autoplay playsinline></video>
+          <audio id="stage-audio" autoplay></audio>
+          <div id="no-video-placeholder">
+            <div class="audio-visualizer">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <p>Audio Only</p>
+          </div>
+        </div>
+        <div id="stage-controls">
+          <span id="viewer-count">0 watching</span>
+          <span id="performer-name"></span>
+          <div id="performer-controls" style="display:none">
+            <button id="toggle-mic-btn" class="btn btn-small">Mute Mic</button>
+            <button id="toggle-cam-btn" class="btn btn-small">Toggle Cam</button>
+            <button id="end-stream-btn" class="btn btn-small btn-danger">End Stream</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat area -->
+      <div id="chat-area">
+        <div id="chat-messages"></div>
+        <form id="chat-form">
+          <input id="chat-input" type="text" placeholder="Say something..." maxlength="280" autocomplete="off">
+          <button type="submit" class="btn btn-primary">Send</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/livekit-client@2.9.1/dist/livekit-client.umd.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/stream.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
