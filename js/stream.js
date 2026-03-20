@@ -5,8 +5,43 @@ const Stream = (() => {
   let room = null;
   let onViewerCountChange = null;
 
+  // Rewrite private LAN IPs to public IP in ICE candidates for remote viewers
+  function patchIceCandidates(publicIp) {
+    if (!publicIp) return;
+    // Match common private IP patterns (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+    const privateIpRegex = /(?:192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})/g;
+
+    const origAddIceCandidate = RTCPeerConnection.prototype.addIceCandidate;
+    RTCPeerConnection.prototype.addIceCandidate = function(candidate) {
+      if (candidate && candidate.candidate && privateIpRegex.test(candidate.candidate)) {
+        candidate = new RTCIceCandidate({
+          candidate: candidate.candidate.replace(privateIpRegex, publicIp),
+          sdpMid: candidate.sdpMid,
+          sdpMLineIndex: candidate.sdpMLineIndex,
+        });
+      }
+      return origAddIceCandidate.call(this, candidate);
+    };
+
+    const origSetRemoteDesc = RTCPeerConnection.prototype.setRemoteDescription;
+    RTCPeerConnection.prototype.setRemoteDescription = function(desc) {
+      if (desc && desc.sdp) {
+        desc = new RTCSessionDescription({
+          type: desc.type,
+          sdp: desc.sdp.replace(privateIpRegex, publicIp),
+        });
+      }
+      return origSetRemoteDesc.call(this, desc);
+    };
+  }
+
   async function connect(tunnelUrl, token, callbacks = {}) {
     onViewerCountChange = callbacks.onViewerCountChange || null;
+
+    // If a public IP was provided, rewrite ICE candidates for remote viewers
+    if (callbacks.publicIp) {
+      patchIceCandidates(callbacks.publicIp);
+    }
 
     // Determine ws:// vs wss:// based on host
     let wsUrl = tunnelUrl.replace(/^(https?|wss?):\/\//, '').replace(/\/$/, '');
@@ -16,20 +51,6 @@ const Stream = (() => {
     room = new LivekitClient.Room({
       adaptiveStream: true,
       dynacast: true,
-      rtcConfig: {
-        iceServers: [
-          { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-          {
-            urls: [
-              'turn:openrelay.metered.ca:80',
-              'turn:openrelay.metered.ca:443',
-              'turn:openrelay.metered.ca:443?transport=tcp',
-            ],
-            username: 'openrelayproject',
-            credential: 'openrelayproject',
-          },
-        ],
-      },
     });
 
     // Track subscribed — viewer receives performer's tracks

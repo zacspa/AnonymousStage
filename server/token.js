@@ -54,7 +54,7 @@ app.get('/token', async (req, res) => {
   });
 
   const token = await at.toJwt();
-  res.json({ token });
+  res.json({ token, publicIp: process.env.PUBLIC_IP || '' });
 });
 
 // Proxy everything else (including WebSocket upgrades) to LiveKit

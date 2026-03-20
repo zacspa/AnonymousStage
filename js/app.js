@@ -32,8 +32,9 @@
   }
 
   try {
-    const token = await fetchToken(tunnelHost, anonName);
-    const room = await Stream.connect(tunnelHost, token, {
+    const tokenData = await fetchToken(tunnelHost, anonName);
+    const room = await Stream.connect(tunnelHost, tokenData.token, {
+      publicIp: tokenData.publicIp || null,
       onViewerCountChange: count => {
         viewerCountEl.textContent = `${count} watching`;
       },
@@ -80,7 +81,6 @@
     const url = `https://${host}/token?name=${encodeURIComponent(identity)}&performer=false`;
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`Token server returned ${resp.status}`);
-    const data = await resp.json();
-    return data.token;
+    return resp.json();
   }
 })();
