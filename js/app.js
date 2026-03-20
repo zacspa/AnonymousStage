@@ -49,6 +49,19 @@
     setupScreen.style.display = 'none';
     stageScreen.style.display = 'flex';
     performerNameEl.textContent = anonName;
+
+    // Show unmute overlay — user must tap to enable audio (browser autoplay policy)
+    const unmuteOverlay = document.getElementById('unmute-overlay');
+    const unmuteBtn = document.getElementById('unmute-btn');
+    unmuteOverlay.style.display = 'flex';
+    unmuteBtn.addEventListener('click', () => {
+      // Unmute all audio/video elements
+      document.querySelectorAll('audio, video').forEach(el => {
+        el.muted = false;
+        el.play().catch(() => {});
+      });
+      unmuteOverlay.style.display = 'none';
+    });
   } catch (err) {
     console.error(err);
     setupViewer.innerHTML = `<p>Could not connect to stream.</p><p style="color:var(--text-dim)">${err.message}</p>`;

@@ -3,7 +3,7 @@ const path = require('path');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const { AccessToken } = require('livekit-server-sdk');
 const cors = require('cors');
-const { router: authRouter, hasValidSession } = require('./auth');
+const { router: authRouter, hasValidSession, getSecret } = require('./auth');
 
 const app = express();
 app.use(cors());
@@ -68,6 +68,7 @@ app.use('/', livekitProxy);
 
 const server = app.listen(PORT, () => {
   console.log(`✓ Token server running on :${PORT} (proxying LiveKit at ${LIVEKIT_URL})`);
+  console.log(`✓ Performer secret: ${getSecret()}`);
 });
 
 server.on('upgrade', (req, socket, head) => {

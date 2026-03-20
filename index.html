@@ -19,14 +19,18 @@
 
   </div>
 
+  <!-- Tap to unmute overlay -->
+  <div id="unmute-overlay" style="display:none">
+    <button id="unmute-btn" class="btn btn-primary" style="font-size:1.2rem; padding:1rem 2.5rem;">Tap to Listen</button>
+  </div>
+
   <!-- Main stage screen -->
   <div id="stage-screen" class="screen" style="display:none">
     <div id="stage-layout">
       <!-- Media area -->
       <div id="media-area">
         <div id="video-container">
-          <video id="stage-video" autoplay playsinline></video>
-          <audio id="stage-audio" autoplay></audio>
+          <video id="stage-video" autoplay playsinline muted></video>
           <div id="no-video-placeholder">
             <div class="audio-visualizer">
               <span></span><span></span><span></span><span></span><span></span>

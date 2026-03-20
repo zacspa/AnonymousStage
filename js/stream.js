@@ -8,13 +8,28 @@ const Stream = (() => {
   async function connect(tunnelUrl, token, callbacks = {}) {
     onViewerCountChange = callbacks.onViewerCountChange || null;
 
-    // Ensure wss:// protocol
-    let wsUrl = tunnelUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    wsUrl = `wss://${wsUrl}`;
+    // Determine ws:// vs wss:// based on host
+    let wsUrl = tunnelUrl.replace(/^(https?|wss?):\/\//, '').replace(/\/$/, '');
+    const isLocal = wsUrl.startsWith('localhost') || wsUrl.startsWith('127.0.0.1');
+    wsUrl = `${isLocal ? 'ws' : 'wss'}://${wsUrl}`;
 
     room = new LivekitClient.Room({
       adaptiveStream: true,
       dynacast: true,
+      rtcConfig: {
+        iceServers: [
+          { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+          {
+            urls: [
+              'turn:openrelay.metered.ca:80',
+              'turn:openrelay.metered.ca:443',
+              'turn:openrelay.metered.ca:443?transport=tcp',
+            ],
+            username: 'openrelayproject',
+            credential: 'openrelayproject',
+          },
+        ],
+      },
     });
 
     // Track subscribed — viewer receives performer's tracks
@@ -34,7 +49,10 @@ const Stream = (() => {
         if (old) old.replaceWith(el);
         document.getElementById('no-video-placeholder').classList.add('hidden');
       } else if (track.kind === 'audio') {
-        el.id = 'stage-audio';
+        el.id = 'stage-audio-' + Math.random().toString(36).slice(2);
+        el.autoplay = true;
+        // Start muted; unmute overlay handles user gesture
+        el.muted = true;
         document.body.appendChild(el);
       }
       if (callbacks.onTrackSubscribed) callbacks.onTrackSubscribed(track);
