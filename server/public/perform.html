@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AnonymousStage — Performer</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    #auth-screen { text-align: center; }
+    #auth-status { margin: 1rem 0; color: var(--text-dim); min-height: 1.5em; }
+    .key-icon { font-size: 3rem; margin-bottom: 1rem; }
+    #auth-btn { font-size: 1.1rem; padding: 0.8rem 2rem; }
+  </style>
+</head>
+<body>
+  <!-- Auth screen -->
+  <div id="auth-screen" class="screen">
+    <h1>AnonymousStage</h1>
+    <p class="subtitle">Performer Login</p>
+    <div class="setup-section">
+      <div class="key-icon">🔑</div>
+      <button id="auth-btn" class="btn btn-primary">Loading...</button>
+      <p id="auth-status"></p>
+    </div>
+  </div>
+
+  <!-- Performer setup (post-auth) -->
+  <div id="setup-screen" class="screen" style="display:none">
+    <h1>AnonymousStage</h1>
+    <p class="subtitle">You're authenticated</p>
+    <div class="setup-section">
+      <label for="tunnel-input">Tunnel URL (from start.sh)</label>
+      <input id="tunnel-input" type="text" placeholder="https://abc123.trycloudflare.com">
+      <button id="go-live-btn" class="btn btn-primary">Go Live</button>
+    </div>
+  </div>
+
+  <!-- Stage screen -->
+  <div id="stage-screen" class="screen" style="display:none">
+    <div id="stage-layout">
+      <div id="media-area">
+        <div id="video-container">
+          <video id="stage-video" autoplay playsinline></video>
+          <audio id="stage-audio" autoplay></audio>
+          <div id="no-video-placeholder">
+            <div class="audio-visualizer">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <p>Audio Only</p>
+          </div>
+        </div>
+        <div id="stage-controls">
+          <span id="viewer-count">0 watching</span>
+          <span id="performer-name">Performer (you)</span>
+          <div id="performer-controls">
+            <button id="toggle-mic-btn" class="btn btn-small">Mute Mic</button>
+            <button id="toggle-cam-btn" class="btn btn-small">Toggle Cam</button>
+            <button id="end-stream-btn" class="btn btn-small btn-danger">End Stream</button>
+          </div>
+        </div>
+      </div>
+      <div id="chat-area">
+        <div id="chat-messages"></div>
+        <form id="chat-form">
+          <input id="chat-input" type="text" placeholder="Say something..." maxlength="280" autocomplete="off">
+          <button type="submit" class="btn btn-primary">Send</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/@simplewebauthn/browser@11/dist/bundle/index.umd.min.js"></script>
+  <script src="https://unpkg.com/livekit-client@2.9.1/dist/livekit-client.umd.js"></script>
+  <script src="/js/chat.js"></script>
+  <script src="/js/stream.js"></script>
+  <script>
+    (async () => {
+      const authBtn = document.getElementById('auth-btn');
+      const authStatus = document.getElementById('auth-status');
+      const authScreen = document.getElementById('auth-screen');
+      const setupScreen = document.getElementById('setup-screen');
+      const stageScreen = document.getElementById('stage-screen');
+      const tunnelInput = document.getElementById('tunnel-input');
+      const goLiveBtn = document.getElementById('go-live-btn');
+      const viewerCountEl = document.getElementById('viewer-count');
+      const chatForm = document.getElementById('chat-form');
+      const chatInput = document.getElementById('chat-input');
+      const toggleMicBtn = document.getElementById('toggle-mic-btn');
+      const toggleCamBtn = document.getElementById('toggle-cam-btn');
+      const endStreamBtn = document.getElementById('end-stream-btn');
+
+      let sessionToken = null;
+
+      // Check if credentials exist
+      const loginCheck = await fetch('/auth/login-options').then(r => r.json());
+      const needsRegistration = loginCheck.noCredentials === true;
+
+      if (needsRegistration) {
+        authBtn.textContent = 'Register Security Key';
+        authStatus.textContent = 'No key registered yet. Plug in your security key and click above.';
+        authBtn.addEventListener('click', register);
+      } else {
+        authBtn.textContent = 'Tap Security Key';
+        authStatus.textContent = 'Tap your security key to authenticate.';
+        authBtn.addEventListener('click', login);
+      }
+
+      async function register() {
+        authBtn.disabled = true;
+        authStatus.textContent = 'Waiting for security key...';
+        try {
+          const options = await fetch('/auth/register-options').then(r => r.json());
+          const credential = await SimpleWebAuthnBrowser.startRegistration({ optionsJSON: options });
+          const result = await fetch('/auth/register-verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(credential),
+          }).then(r => r.json());
+
+          if (result.verified) {
+            authStatus.textContent = 'Key registered! Now tap to authenticate.';
+            authBtn.textContent = 'Tap Security Key';
+            authBtn.disabled = false;
+            authBtn.removeEventListener('click', register);
+            authBtn.addEventListener('click', login);
+          } else {
+            authStatus.textContent = 'Registration failed. Try again.';
+            authBtn.disabled = false;
+          }
+        } catch (err) {
+          console.error(err);
+          authStatus.textContent = `Error: ${err.message}`;
+          authBtn.disabled = false;
+        }
+      }
+
+      async function login() {
+        authBtn.disabled = true;
+        authStatus.textContent = 'Waiting for security key...';
+        try {
+          const options = await fetch('/auth/login-options').then(r => r.json());
+          const credential = await SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: options });
+          const result = await fetch('/auth/login-verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(credential),
+          }).then(r => r.json());
+
+          if (result.verified) {
+            sessionToken = result.sessionToken;
+            authScreen.style.display = 'none';
+            setupScreen.style.display = 'flex';
+          } else {
+            authStatus.textContent = 'Authentication failed. Try again.';
+            authBtn.disabled = false;
+          }
+        } catch (err) {
+          console.error(err);
+          authStatus.textContent = `Error: ${err.message}`;
+          authBtn.disabled = false;
+        }
+      }
+
+      // --- Go Live ---
+      goLiveBtn.addEventListener('click', async () => {
+        const host = tunnelInput.value.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+        if (!host) return alert('Enter your tunnel URL');
+
+        goLiveBtn.disabled = true;
+        goLiveBtn.textContent = 'Connecting...';
+
+        try {
+          // Fetch token with session auth
+          const url = `https://${host}/token?name=Performer&performer=true&session=${sessionToken}`;
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error(`Token server returned ${resp.status}`);
+          const data = await resp.json();
+
+          const room = await Stream.connect(host, data.token, {
+            onViewerCountChange: count => {
+              viewerCountEl.textContent = `${count} watching`;
+            },
+            onDisconnected: () => {
+              alert('Disconnected from server');
+              location.reload();
+            },
+          });
+
+          Chat.init(room);
+          Chat.appendSystem('You are live!');
+          await Stream.publishTracks({ audio: true, video: false });
+
+          setupScreen.style.display = 'none';
+          stageScreen.style.display = 'flex';
+        } catch (err) {
+          console.error(err);
+          alert(`Failed to connect: ${err.message}`);
+          goLiveBtn.disabled = false;
+          goLiveBtn.textContent = 'Go Live';
+        }
+      });
+
+      toggleMicBtn.addEventListener('click', () => {
+        const on = Stream.toggleMic();
+        toggleMicBtn.textContent = on ? 'Mute Mic' : 'Unmute Mic';
+      });
+
+      toggleCamBtn.addEventListener('click', () => {
+        const on = Stream.toggleCamera();
+        toggleCamBtn.textContent = on ? 'Hide Cam' : 'Show Cam';
+      });
+
+      endStreamBtn.addEventListener('click', () => {
+        Stream.disconnect();
+        location.reload();
+      });
+
+      chatForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const text = chatInput.value;
+        if (!text.trim()) return;
+        Chat.send('Performer', text);
+        chatInput.value = '';
+      });
+    })();
+  </script>
+</body>
+</html>
